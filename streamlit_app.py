@@ -121,4 +121,4 @@ rotated_y = x * np.sin(turntable_angle) + y * np.cos(turntable_angle)
 
 # --- PLOTTING ---
 fig, ax = plt.subplots()
-ax.set_xlim(-radius - 5, radius_
+ax.set_xlim(-radius - 5, radius_)
