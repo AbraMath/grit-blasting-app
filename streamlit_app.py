@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
-from streamlit_lottie import st_lottie_spinner
 import streamlit.components.v1 as components
 
 # App title
