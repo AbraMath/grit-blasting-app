@@ -74,4 +74,4 @@ if st.button("▶️ Play Animation"):
 
         # Update frame
         frame_placeholder.pyplot(fig)
-        time.sleep(0.05)
+        time.sleep(0.005)
