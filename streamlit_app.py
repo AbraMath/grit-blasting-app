@@ -1,67 +1,77 @@
 import streamlit as st
-import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+import numpy as np
+import time
 
-# Set page config
-st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
+# Must be first
+st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", layout="centered")
 
-st.title("🔩 Grit Blasting Visualizer")
-st.markdown("Visualize how your turntable and rotating nozzle system covers parts.")
+st.title("🌀 Grit Blasting Nozzle Path Visualization (with Offset Ring)")
 
-# User inputs
-col1, col2 = st.columns(2)
-with col1:
-    turntable_rpm = st.slider("Turntable RPM", 1, 60, 10)
-    table_radius_in = st.slider("Turntable Diameter (in)", 24, 60, 36) / 2
-with col2:
-    nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
-    num_nozzles = st.slider("Number of Nozzles", 1, 12, 6)
+# --- Parameters ---
+turntable_radius = 18  # inches (36" diameter / 2)
+nozzle_ring_radius = turntable_radius / 4  # ring of nozzles is smaller
+nozzle_ring_offset = turntable_radius / 2  # offset from center (9 inches)
+num_nozzles = 6
 
-blast_duration = st.slider("Blast Duration (s)", 5, 60, 30)
-nozzle_distance_in = table_radius_in / 2  # fixed at midpoint
-nozzle_spot_radius = 1  # inches (2 inch diameter)
+turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
+nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
+trail_length = st.slider("Trail Length (frames)", 1, 60, 20)
 
-# Time simulation
-fps = 20
-t = np.linspace(0, blast_duration, blast_duration * fps)
+st.markdown("Press ▶️ to see how the offset nozzles move across the turntable.")
 
-# Precompute angles
-turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
-nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t  # opposite direction
+if st.button("▶️ Play Animation"):
+    frame_placeholder = st.empty()
 
-# Plot setup
-fig, ax = plt.subplots(figsize=(6, 6))
-ax.set_aspect('equal')
-ax.set_xlim(-table_radius_in-5, table_radius_in+5)
-ax.set_ylim(-table_radius_in-5, table_radius_in+5)
+    nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
+    trail_history = []
 
-# Draw turntable
-turntable = patches.Circle((0, 0), table_radius_in, fill=False, linestyle='--', label="Turntable")
-ax.add_patch(turntable)
+    for frame in range(60):  # simulate 2 seconds at 30 FPS
+        t = frame / 30
+        turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
+        nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
 
-# Animate nozzle paths
-colors = plt.cm.viridis(np.linspace(0, 1, num_nozzles))
-for i in range(num_nozzles):
-    angle_offset = 2 * np.pi * i / num_nozzles
-    x_path, y_path = [], []
-    for j in range(len(t)):
-        # Nozzle position on rotating ring
-        nozzle_x = nozzle_distance_in * np.cos(nozzle_angle[j] + angle_offset)
-        nozzle_y = nozzle_distance_in * np.sin(nozzle_angle[j] + angle_offset)
+        # Position of nozzle ring center (offset)
+        center_offset_x = nozzle_ring_offset * np.cos(nozzle_angle)
+        center_offset_y = nozzle_ring_offset * np.sin(nozzle_angle)
 
-        # Rotate nozzle path by turntable
-        rotated_x = nozzle_x * np.cos(turntable_angle[j]) - nozzle_y * np.sin(turntable_angle[j])
-        rotated_y = nozzle_x * np.sin(turntable_angle[j]) + nozzle_y * np.cos(turntable_angle[j])
+        # Local nozzle positions (around offset center)
+        local_x = nozzle_ring_radius * np.cos(nozzle_angles)
+        local_y = nozzle_ring_radius * np.sin(nozzle_angles)
 
-        x_path.append(rotated_x)
-        y_path.append(rotated_y)
+        # Add offset
+        x = local_x + center_offset_x
+        y = local_y + center_offset_y
 
-    ax.plot(x_path, y_path, color=colors[i], label=f"Nozzle {i+1}")
-    ax.add_patch(patches.Circle((x_path[-1], y_path[-1]), nozzle_spot_radius, color=colors[i], alpha=0.3))
+        # Rotate everything by turntable
+        rotated_x = x * np.cos(turntable_angle) - y * np.sin(turntable_angle)
+        rotated_y = x * np.sin(turntable_angle) + y * np.cos(turntable_angle)
 
-ax.legend(loc="upper right", fontsize="x-small")
-st.pyplot(fig)
+        # Save current nozzle positions for trails
+        trail_history.append((rotated_x.copy(), rotated_y.copy()))
+        if len(trail_history) > trail_length:
+            trail_history.pop(0)
 
-st.markdown("---")
-st.caption("Developed with ❤️ for visualizing automated blasting systems.")
+        # Plot
+        fig, ax = plt.subplots()
+        ax.set_xlim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_ylim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_aspect('equal')
+        ax.set_title(f"Frame {frame + 1}/60")
+
+        # Draw turntable
+        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
+        ax.add_patch(turntable_circle)
+
+        # Draw trails (older = lighter)
+        for i, (tx, ty) in enumerate(trail_history):
+            alpha = (i + 1) / len(trail_history)
+            ax.scatter(tx, ty, color='skyblue', s=40, alpha=alpha)
+
+        # Draw current nozzles
+        ax.scatter(rotated_x, rotated_y, c='blue', s=100, label='Current Nozzles')
+        ax.legend()
+
+        # Update frame
+        frame_placeholder.pyplot(fig)
+        time.sleep(0.05)
