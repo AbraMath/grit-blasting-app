@@ -65,4 +65,37 @@ if st.button("▶️ Start Simulation"):
 
         # Plot coverage heatmap
         fig, ax = plt.subplots(figsize=(6,6))
-        ax.imshow(coverage_map, extent=[-turntable_radius, turntable_radius, -turntable_radius,_]()_
+        ax.imshow(coverage_map, extent=[-turntable_radius, turntable_radius, -turntable_radius, turntable_radius],
+                  origin='lower', cmap='Blues', alpha=0.7)
+
+        # Draw turntable outline
+        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
+        ax.add_patch(turntable_circle)
+
+        # Draw nozzle ring center (fixed)
+        ax.scatter(center_x, center_y, c='red', s=100, label='Nozzle Ring Center')
+
+        # Draw nozzles
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=150, label='Nozzles')
+
+        # Draw rotation direction arrows
+        arrow_len = 3
+        # Nozzle ring arrow (red)
+        arrow_dx = -arrow_len * np.sin(nozzle_angle)
+        arrow_dy = arrow_len * np.cos(nozzle_angle)
+        ax.arrow(center_x, center_y, arrow_dx, arrow_dy, color='red', width=0.15, head_width=0.6)
+
+        # Turntable arrow (gray) at origin
+        t_dx = -arrow_len * np.sin(turntable_angle)
+        t_dy = arrow_len * np.cos(turntable_angle)
+        ax.arrow(0, 0, t_dx, t_dy, color='gray', width=0.15, head_width=0.6)
+
+        ax.set_xlim(-turntable_radius-2, turntable_radius+2)
+        ax.set_ylim(-turntable_radius-2, turntable_radius+2)
+        ax.set_aspect('equal')
+        ax.set_title(f"Frame {frame+1}/{num_frames}")
+        ax.legend(loc='upper right')
+
+        frame_placeholder.pyplot(fig)
+        plt.close(fig)
+        time.sleep(0.03)  # ~30 FPS
