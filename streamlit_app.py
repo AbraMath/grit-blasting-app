@@ -89,4 +89,4 @@ if st.button("▶️ Play Animation"):
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
-        time.sleep(0.01)
+        time.sleep(0.1)
