@@ -8,7 +8,7 @@ st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", la
 st.title("🌀 Grit Blasting Nozzle Path Visualization (with Fixed Nozzle Ring Center)")
 
 # --- Parameters ---
-turntable_radius = 18  # inches (36" diameter / 2)
+turntable_radius = 18  # inches
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
@@ -25,11 +25,17 @@ if st.button("▶️ Play Animation"):
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
     trail_history = []
 
-    # Grid for heatmap
-    grid_size = 100
+    # --- Grid for heatmap ---
+    grid_size = 50
     heatmap_grid = np.zeros((grid_size, grid_size))
     x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
     y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
+
+    # Create mask for points within turntable
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    Xc, Yc = np.meshgrid(x_centers, y_centers)
+    mask_within_circle = Xc**2 + Yc**2 <= turntable_radius**2
 
     fig, ax = plt.subplots()
 
@@ -54,7 +60,7 @@ if st.button("▶️ Play Animation"):
         if len(trail_history) > trail_length:
             trail_history.pop(0)
 
-        # Update heatmap
+        # --- Update heatmap ---
         hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
         heatmap_grid += hist
 
@@ -100,9 +106,9 @@ if st.button("▶️ Play Animation"):
     ax2.set_aspect('equal')
     st.pyplot(fig2)
 
-    # --- Coverage score ---
-    total_cells = np.pi * turntable_radius ** 2
-    cell_area = (2 * turntable_radius / grid_size) ** 2
-    hit_count = np.count_nonzero(heatmap_grid)
-    coverage_score = (hit_count * cell_area) / total_cells * 100
+    # --- Coverage score using mask ---
+    hits_within = (heatmap_grid > 0) & mask_within_circle
+    covered_cells = np.count_nonzero(hits_within)
+    total_cells_within = np.count_nonzero(mask_within_circle)
+    coverage_score = (covered_cells / total_cells_within) * 100
     st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
