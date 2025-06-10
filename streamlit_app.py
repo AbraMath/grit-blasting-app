@@ -90,3 +90,4 @@ if run_batch:
                 plt.colorbar(im, ax=ax, label="Hit Count")
 
                 st.pyplot(fig)
+
