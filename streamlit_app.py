@@ -66,10 +66,10 @@ if st.button("▶️ Play Animation"):
         # Draw trails (older = lighter)
         for i, (tx, ty) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
-            ax.scatter(tx, ty, color='skyblue', s=40, alpha=alpha)
+            ax.scatter(tx, ty, color='skyblue', s=200, alpha=alpha)
 
         # Draw current nozzles
-        ax.scatter(rotated_x, rotated_y, c='blue', s=100, label='Current Nozzles')
+        ax.scatter(rotated_x, rotated_y, c='blue', s=200, label='Current Nozzles')
         ax.legend()
 
         # Update frame
