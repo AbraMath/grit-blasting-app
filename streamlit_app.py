@@ -3,54 +3,53 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-# Must be first
-st.set_page_config(page_title="Grit Blasting Visualizer with Fixed Ring Center", layout="centered")
-
-st.title("🌀 Grit Blasting Nozzle Path Visualization (Fixed Ring Center)")
+st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
+st.title("🌀 Grit Blasting Visualization with Moving Arrows")
 
 # --- Parameters ---
-turntable_radius = 18  # inches (36" diameter / 2)
-nozzle_ring_radius = turntable_radius / 4  # ring of nozzles is smaller
-nozzle_ring_offset = turntable_radius / 2  # offset from center (9 inches)
+turntable_radius = 18  # inches
+nozzle_ring_radius = turntable_radius / 4
+nozzle_ring_offset = turntable_radius / 2  # fixed offset from center
 num_nozzles = 6
 
 turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
 nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 
-st.markdown("Press ▶️ to see how the fixed-center nozzles move across the turntable.")
+st.markdown("Press ▶️ to animate. Arrows rotate **with** the nozzle ring and turntable.")
 
 if st.button("▶️ Play Animation"):
     frame_placeholder = st.empty()
-
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
     trail_history = []
 
-    for frame in range(100):  # simulate ~3 seconds at 30 FPS
+    for frame in range(100):  # simulate ~3 sec
         t = frame / 30
         turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
-        nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
+        nozzle_angle = 2 * np.pi * (nozzle_rpm / 60) * t
 
-        # --- Fixed nozzle ring center (x = 9", y = 0") ---
-        center_offset_x = nozzle_ring_offset
-        center_offset_y = 0
+        # --- Fixed nozzle ring center ---
+        ring_cx, ring_cy = nozzle_ring_offset, 0
 
-        # --- Compute nozzle positions revolving around fixed ring center ---
-        x = []
-        y = []
-        for angle_offset in nozzle_angles:
-            angle = nozzle_angle + angle_offset
-            x.append(center_offset_x + nozzle_ring_radius * np.cos(angle))
-            y.append(center_offset_y + nozzle_ring_radius * np.sin(angle))
+        # --- Compute nozzle positions (rotate around ring center) ---
+        x, y = [], []
+        for offset in nozzle_angles:
+            angle = nozzle_angle + offset
+            px = ring_cx + nozzle_ring_radius * np.cos(angle)
+            py = ring_cy + nozzle_ring_radius * np.sin(angle)
+
+            # Apply turntable rotation (around origin)
+            rx = px * np.cos(turntable_angle) - py * np.sin(turntable_angle)
+            ry = px * np.sin(turntable_angle) + py * np.cos(turntable_angle)
+
+            x.append(rx)
+            y.append(ry)
+
         x = np.array(x)
         y = np.array(y)
 
-        # --- Rotate entire system by turntable angle ---
-        rotated_x = x * np.cos(turntable_angle) - y * np.sin(turntable_angle)
-        rotated_y = x * np.sin(turntable_angle) + y * np.cos(turntable_angle)
-
-        # --- Save current nozzle positions for trail effect ---
-        trail_history.append((rotated_x.copy(), rotated_y.copy()))
+        # --- Save trail ---
+        trail_history.append((x.copy(), y.copy()))
         if len(trail_history) > trail_length:
             trail_history.pop(0)
 
@@ -62,18 +61,41 @@ if st.button("▶️ Play Animation"):
         ax.set_title(f"Frame {frame + 1}/100")
 
         # Draw turntable outline
-        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
-        ax.add_patch(turntable_circle)
+        ax.add_patch(plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1))
 
-        # Draw trails (older = lighter)
-        for i, (tx, ty) in enumerate(trail_history):
+        # ➤ Turntable arrow (rotates around origin)
+        base_angle = np.radians(45)
+        arrow_base_radius = turntable_radius - 3
+        tx = arrow_base_radius * np.cos(base_angle + turntable_angle)
+        ty = arrow_base_radius * np.sin(base_angle + turntable_angle)
+        dx = -1.5 * np.sin(base_angle + turntable_angle)
+        dy =  1.5 * np.cos(base_angle + turntable_angle)
+        ax.arrow(tx, ty, dx, dy, head_width=1, head_length=1.5, fc='gray', ec='gray', label='Turntable Rotation')
+
+        # ➤ Nozzle ring arrow (rotates with nozzles around ring center)
+        arrow_ring_angle = nozzle_angle
+        nx = ring_cx + nozzle_ring_radius * np.cos(arrow_ring_angle)
+        ny = ring_cy + nozzle_ring_radius * np.sin(arrow_ring_angle)
+        tangent_angle = arrow_ring_angle + np.pi / 2
+        dxr = 1.5 * np.cos(tangent_angle)
+        dyr = 1.5 * np.sin(tangent_angle)
+
+        # Rotate the arrow around origin (turntable)
+        nx_rot = nx * np.cos(turntable_angle) - ny * np.sin(turntable_angle)
+        ny_rot = nx * np.sin(turntable_angle) + ny * np.cos(turntable_angle)
+        dxr_rot = dxr * np.cos(turntable_angle) - dyr * np.sin(turntable_angle)
+        dyr_rot = dxr * np.sin(turntable_angle) + dyr * np.cos(turntable_angle)
+
+        ax.arrow(nx_rot, ny_rot, dxr_rot, dyr_rot, head_width=1, head_length=1.5, fc='blue', ec='blue', label='Nozzle Ring Rotation')
+
+        # --- Draw trails ---
+        for i, (txs, tys) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
-            ax.scatter(tx, ty, color='skyblue', s=200, alpha=alpha)
+            ax.scatter(txs, tys, color='skyblue', s=200, alpha=alpha)
 
-        # Draw current nozzle positions
-        ax.scatter(rotated_x, rotated_y, c='blue', s=200, label='Current Nozzles')
-        ax.legend()
+        # --- Current nozzle positions ---
+        ax.scatter(x, y, c='blue', s=200, label='Current Nozzles')
+        ax.legend(loc='upper right')
 
-        # Update frame
         frame_placeholder.pyplot(fig)
-        time.sleep(0.005)
+        time.sleep(0.01)
