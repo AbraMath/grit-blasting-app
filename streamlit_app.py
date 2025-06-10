@@ -16,7 +16,7 @@ num_nozzles = 6
 
 turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
 nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
-trail_length = st.slider("Trail Length (frames)", 1, 60, 20)
+trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 
 st.markdown("Press ▶️ to see how the offset nozzles move across the turntable.")
 
