@@ -83,7 +83,7 @@ if st.button("▶️ Play Animation"):
             alpha = (i + 1) / len(trail_history)
             ax.scatter(tx, ty, color=cm.Blues(alpha), s=200, alpha=alpha)
 
-        ax.scatter(nozzle_x, nozzle_y, c='skyblue', s=200, label='Nozzle Tips')
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
