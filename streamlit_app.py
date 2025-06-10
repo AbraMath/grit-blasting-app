@@ -2,13 +2,12 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
-import time
 
-st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", layout="centered")
-st.title("🌀 Grit Blasting Nozzle Path Visualization (with Fixed Nozzle Ring Center)")
+st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
+st.title("⚡ Fast Grit Blasting Simulation")
 
 # --- Parameters ---
-turntable_radius = 18  # inches (36" diameter / 2)
+turntable_radius = 18  # inches
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
@@ -17,10 +16,9 @@ turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
 nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
+skip_frames = st.checkbox("Skip Every Other Frame (faster but choppier)", value=True)
 
-st.markdown("Press ▶️ to see how the nozzles revolve around the fixed ring center, with turntable rotation independent.")
-
-if st.button("▶️ Play Animation"):
+if st.button("▶️ Run Simulation"):
     frame_placeholder = st.empty()
 
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
@@ -34,10 +32,13 @@ if st.button("▶️ Play Animation"):
 
     fig, ax = plt.subplots()
 
-    fps = 30
+    fps = 10  # Lower FPS for faster animation
     total_frames = int(run_seconds * fps)
 
     for frame in range(total_frames):
+        if skip_frames and frame % 2 != 0:
+            continue  # Skip every other frame for speed
+
         t = frame / fps
         turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
         nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
@@ -58,30 +59,23 @@ if st.button("▶️ Play Animation"):
         if len(trail_history) > trail_length:
             trail_history.pop(0)
 
-        # Update heatmap
-        hist, x_idx, y_idx = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
+        hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
         heatmap_grid += hist
 
-        # --- Plotting ---
         ax.clear()
         ax.set_xlim(-turntable_radius - 5, turntable_radius + 5)
         ax.set_ylim(-turntable_radius - 5, turntable_radius + 5)
         ax.set_aspect('equal')
         ax.set_title(f"Frame {frame + 1}/{total_frames}")
 
-        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
-        ax.add_patch(turntable_circle)
-
+        ax.add_patch(plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1))
         ax.scatter(center_x, center_y, c='red', s=100, label="Nozzle Ring Center")
 
         arrow_length = 4
-        arrow_dx = -arrow_length * np.sin(nozzle_angle)
-        arrow_dy = arrow_length * np.cos(nozzle_angle)
-        ax.arrow(center_x, center_y, arrow_dx, arrow_dy, color='red', width=0.3, head_width=1)
-
-        t_dx = -arrow_length * np.sin(turntable_angle)
-        t_dy = arrow_length * np.cos(turntable_angle)
-        ax.arrow(0, 0, t_dx, t_dy, color='gray', width=0.3, head_width=1)
+        ax.arrow(center_x, center_y, -arrow_length*np.sin(nozzle_angle), arrow_length*np.cos(nozzle_angle),
+                 color='red', width=0.3, head_width=1)
+        ax.arrow(0, 0, -arrow_length*np.sin(turntable_angle), arrow_length*np.cos(turntable_angle),
+                 color='gray', width=0.3, head_width=1)
 
         for i, (tx, ty) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
@@ -91,9 +85,8 @@ if st.button("▶️ Play Animation"):
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
-        time.sleep(0.01)
 
-    # --- After animation: show heatmap ---
+    # --- Heatmap ---
     fig2, ax2 = plt.subplots()
     ax2.set_title("🔆 Coverage Heatmap")
     extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
@@ -116,7 +109,7 @@ if st.button("▶️ Play Animation"):
     coverage_score = (hit_count / total_cells) * 100
     st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
 
-    # --- Additional Stats ---
+    # --- Extra Stats ---
     turntable_revs = (turntable_rpm * run_seconds) / 60
     nozzle_revs = (nozzle_rpm * run_seconds) / 60
     col1, col2 = st.columns(2)
