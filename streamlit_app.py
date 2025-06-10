@@ -26,7 +26,7 @@ if st.button("▶️ Play Animation"):
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
     trail_history = []
 
-    for frame in range(60):  # simulate 2 seconds at 30 FPS
+    for frame in range(100):  # simulate 2 seconds at 30 FPS
         t = frame / 30
         turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
         nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
