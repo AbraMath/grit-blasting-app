@@ -1,93 +1,108 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
+import time
 
-# Must be first
-st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", layout="wide")
-st.title("🌀 Grit Blasting Nozzle Path Coverage Comparison (with Fixed Nozzle Ring Center)")
+st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", layout="centered")
+st.title("🌀 Grit Blasting Nozzle Path Visualization (with Fixed Nozzle Ring Center)")
 
 # --- Parameters ---
 turntable_radius = 18  # inches (36" diameter / 2)
-nozzle_ring_radius = turntable_radius / 4  # ring of nozzles is smaller
-nozzle_ring_offset = turntable_radius / 2  # fixed offset from center (9 inches)
+nozzle_ring_radius = turntable_radius / 4
+nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
-frames = 100
-grid_res = 1  # inch per cell
-grid_size = int(2 * turntable_radius / grid_res)
-trail_length = 20  # fixed for speed
 
-# --- UI Controls ---
-st.sidebar.header("Simulation Settings")
-turntable_rpms = st.sidebar.multiselect("Turntable RPMs", list(range(5, 65, 5)), default=[20, 40])
-nozzle_rpms = st.sidebar.multiselect("Nozzle RPMs", list(range(5, 65, 5)), default=[20, 40])
-threshold = st.sidebar.slider("Heatmap Threshold (min hits to count)", 1, 50, 5)
-run_batch = st.sidebar.button("▶️ Run RPM Batch Simulation")
+turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
+nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
+trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 
-# --- Grid setup ---
-x = np.linspace(-turntable_radius, turntable_radius, grid_size)
-y = np.linspace(-turntable_radius, turntable_radius, grid_size)
-X, Y = np.meshgrid(x, y)
+st.markdown("Press ▶️ to see how the nozzles revolve around the fixed ring center, with turntable rotation independent.")
 
-def simulate_coverage(turn_rpm, noz_rpm):
-    impact_map = np.zeros_like(X)
+if st.button("▶️ Play Animation"):
+    frame_placeholder = st.empty()
 
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
+    trail_history = []
 
-    for frame in range(frames):
-        t = frame / 30  # time in seconds (30 FPS)
-        turntable_angle = 2 * np.pi * (turn_rpm / 60) * t
-        nozzle_angle = -2 * np.pi * (noz_rpm / 60) * t
+    # Grid for heatmap
+    grid_size = 100
+    heatmap_grid = np.zeros((grid_size, grid_size))
+    x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
+    y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
-        # Nozzle local positions around ring center
+    fig, ax = plt.subplots()
+
+    for frame in range(100):
+        t = frame / 30
+        turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
+        nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
+
         local_x = nozzle_ring_radius * np.cos(nozzle_angles + nozzle_angle)
         local_y = nozzle_ring_radius * np.sin(nozzle_angles + nozzle_angle)
 
-        # Fixed ring center
         center_x = nozzle_ring_offset
         center_y = 0
 
-        # Absolute nozzle tip positions
         nozzle_x = local_x + center_x
         nozzle_y = local_y + center_y
 
-        # Rotate with turntable
         impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
         impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
 
-        # Convert to grid and accumulate hits
-        for ix, iy in zip(impact_x, impact_y):
-            gx = int((ix + turntable_radius) / grid_res)
-            gy = int((iy + turntable_radius) / grid_res)
-            if 0 <= gx < grid_size and 0 <= gy < grid_size:
-                impact_map[gy, gx] += 1
+        trail_history.append((impact_x.copy(), impact_y.copy()))
+        if len(trail_history) > trail_length:
+            trail_history.pop(0)
 
-    return impact_map
+        # Update heatmap
+        hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
+        heatmap_grid += hist
 
-def compute_coverage_score(map_data, threshold):
-    total = np.sum((X**2 + Y**2) <= turntable_radius**2)
-    covered = np.sum((map_data >= threshold) & ((X**2 + Y**2) <= turntable_radius**2))
-    return round((covered / total) * 100, 1)
+        # --- Plotting ---
+        ax.clear()
+        ax.set_xlim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_ylim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_aspect('equal')
+        ax.set_title(f"Frame {frame + 1}/100")
 
-# --- Run batch comparison ---
-if run_batch:
-    st.subheader("🔍 RPM Coverage Comparison")
+        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
+        ax.add_patch(turntable_circle)
 
-    cols = st.columns(len(nozzle_rpms))
+        ax.scatter(center_x, center_y, c='red', s=100, label="Nozzle Ring Center")
 
-    for i, noz_rpm in enumerate(nozzle_rpms):
-        with cols[i]:
-            for turn_rpm in turntable_rpms:
-                impact_map = simulate_coverage(turn_rpm, noz_rpm)
-                score = compute_coverage_score(impact_map, threshold)
+        arrow_length = 4
+        arrow_dx = -arrow_length * np.sin(nozzle_angle)
+        arrow_dy = arrow_length * np.cos(nozzle_angle)
+        ax.arrow(center_x, center_y, arrow_dx, arrow_dy, color='red', width=0.3, head_width=1)
 
-                fig, ax = plt.subplots()
-                ax.set_title(f"TT: {turn_rpm} RPM, Nozzle: {noz_rpm} RPM\nCoverage: {score}%")
-                heatmap = np.ma.masked_where((X**2 + Y**2) > turntable_radius**2, impact_map)
-                im = ax.imshow(heatmap, extent=(-turntable_radius, turntable_radius, -turntable_radius, turntable_radius),
-                               origin='lower', cmap='hot', interpolation='nearest')
-                ax.set_xlabel("X (inches)")
-                ax.set_ylabel("Y (inches)")
-                plt.colorbar(im, ax=ax, label="Hit Count")
+        t_dx = -arrow_length * np.sin(turntable_angle)
+        t_dy = arrow_length * np.cos(turntable_angle)
+        ax.arrow(0, 0, t_dx, t_dy, color='gray', width=0.3, head_width=1)
 
-                st.pyplot(fig)
+        for i, (tx, ty) in enumerate(trail_history):
+            alpha = (i + 1) / len(trail_history)
+            ax.scatter(tx, ty, color=cm.Blues(alpha), s=200, alpha=alpha)
 
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
+        ax.legend(loc='upper right')
+
+        frame_placeholder.pyplot(fig)
+        time.sleep(0.01)
+
+    # --- After animation: show heatmap ---
+    fig2, ax2 = plt.subplots()
+    ax2.set_title("🔆 Coverage Heatmap")
+    extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+    cax = ax2.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
+    fig2.colorbar(cax, ax=ax2, label="Blast Intensity")
+    ax2.set_xlabel("X (inches)")
+    ax2.set_ylabel("Y (inches)")
+    ax2.set_aspect('equal')
+    st.pyplot(fig2)
+
+    # --- Coverage score ---
+    total_cells = np.pi * turntable_radius ** 2
+    cell_area = (2 * turntable_radius / grid_size) ** 2
+    hit_count = np.count_nonzero(heatmap_grid)
+    coverage_score = (hit_count * cell_area) / total_cells * 100
+    st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
