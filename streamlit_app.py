@@ -20,11 +20,32 @@ num_frames = st.slider("Number of Frames (Duration)", 10, 200, 100)
 resolution = 400  # pixels for coverage map (square)
 coverage_map = np.zeros((resolution, resolution))
 
+# Nozzle impact size: 2 inch diameter circle
+nozzle_diameter_in = 2.0
+nozzle_radius_in = nozzle_diameter_in / 2
+nozzle_radius_px = int(nozzle_radius_in * resolution / (2 * turntable_radius))
+
 def to_pixel_coords(x, y, radius=turntable_radius):
     # Map (x,y) in inches on turntable to pixel coords in coverage_map
     px = int((x + radius) / (2 * radius) * (resolution - 1))
     py = int((y + radius) / (2 * radius) * (resolution - 1))
     return px, py
+
+def draw_circle_on_map(coverage_map, center_x, center_y, radius_px):
+    y_indices, x_indices = np.ogrid[-radius_px:radius_px+1, -radius_px:radius_px+1]
+    mask = x_indices**2 + y_indices**2 <= radius_px**2
+    h, w = coverage_map.shape
+    x_start = max(center_x - radius_px, 0)
+    y_start = max(center_y - radius_px, 0)
+    x_end = min(center_x + radius_px + 1, w)
+    y_end = min(center_y + radius_px + 1, h)
+
+    mask_x_start = 0 if center_x - radius_px >= 0 else radius_px - center_x
+    mask_y_start = 0 if center_y - radius_px >= 0 else radius_px - center_y
+    mask_x_end = mask_x_start + (x_end - x_start)
+    mask_y_end = mask_y_start + (y_end - y_start)
+
+    coverage_map[y_start:y_end, x_start:x_end][mask[mask_y_start:mask_y_end, mask_x_start:mask_x_end]] += 1
 
 st.markdown("Press ▶️ to simulate grit blast coverage accumulating on the turntable.")
 
@@ -57,11 +78,11 @@ if st.button("▶️ Start Simulation"):
         impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
         impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
 
-        # Add coverage to map
+        # Add coverage circles to map
         for ix, iy in zip(impact_x, impact_y):
             px, py = to_pixel_coords(ix, iy)
             if 0 <= px < resolution and 0 <= py < resolution:
-                coverage_map[py, px] += 1
+                draw_circle_on_map(coverage_map, px, py, nozzle_radius_px)
 
         # Plot coverage heatmap
         fig, ax = plt.subplots(figsize=(6,6))
