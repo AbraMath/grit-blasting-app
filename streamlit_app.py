@@ -21,7 +21,6 @@ trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 
 st.markdown("Press ▶️ to visualize nozzle movement around a stationary center and their impact on a spinning turntable.")
 
-# Start animation
 if st.button("▶️ Play Animation"):
     frame_placeholder = st.empty()
 
@@ -45,5 +44,4 @@ if st.button("▶️ Play Animation"):
         nozzle_y = local_y + center_y
 
         # Rotate impact points with turntable
-        impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
-        impact_y = nozzle_x * np.sin(turntable_ang_*
+        imp
