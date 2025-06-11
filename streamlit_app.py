@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
-st.title("🌀 Grit Blasting Nozzle Path Visualization (with Fixed Nozzle Ring Center)")
+st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
 # --- Parameters ---
 turntable_radius = 18  # inches (36" diameter / 2)
@@ -17,7 +17,7 @@ nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
 
-st.markdown("Press ▶️ to see how the nozzles revolve around the fixed ring center, with turntable rotation independent.")
+st.markdown("Press ▶️ to run the animation and see coverage with a 25x25 grid limited to the turntable.")
 
 if st.button("▶️ Play Animation"):
     frame_placeholder = st.empty()
@@ -25,13 +25,13 @@ if st.button("▶️ Play Animation"):
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
     trail_history = []
 
-    # --- Grid for heatmap ---
-    grid_size = 50
+    # --- Grid for heatmap (25x25) ---
+    grid_size = 25
     heatmap_grid = np.zeros((grid_size, grid_size))
     x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
     y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
-    # Create mask for cells inside the turntable
+    # Create mask for valid (circular) region
     xx, yy = np.meshgrid(
         (x_edges[:-1] + x_edges[1:]) / 2,
         (y_edges[:-1] + y_edges[1:]) / 2,
@@ -98,11 +98,11 @@ if st.button("▶️ Play Animation"):
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
-        time.sleep(0.005)  # Faster animation
+        time.sleep(0.005)
 
     # --- After animation: show heatmap ---
     fig2, ax2 = plt.subplots()
-    ax2.set_title("🔆 Coverage Heatmap")
+    ax2.set_title("🔆 Coverage Heatmap (25x25 Grid)")
     extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
     cax = ax2.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
     fig2.colorbar(cax, ax=ax2, label="Blast Intensity")
@@ -117,7 +117,7 @@ if st.button("▶️ Play Animation"):
     coverage_score = (hit_count / total_cells) * 100
     st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
 
-    # --- Additional Stats ---
+    # --- Extra Stats ---
     turntable_revs = (turntable_rpm * run_seconds) / 60
     nozzle_revs = (nozzle_rpm * run_seconds) / 60
     col1, col2 = st.columns(2)
