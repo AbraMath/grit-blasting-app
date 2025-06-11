@@ -135,4 +135,3 @@ if st.button("▶️ Play Animation"):
     buf = BytesIO()
     fig2.savefig(buf, format="png")
     st.download_button("📷 Download Heatmap Image", buf.getvalue(), file_name="heatmap.png")
-
