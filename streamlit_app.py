@@ -1,14 +1,13 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-import time
 
 # --- App Setup ---
 st.set_page_config(page_title="Grit Blasting Simulator", layout="wide")
 st.title("🎯 Grit Blasting Coverage Simulator")
 
 # --- Constants ---
-turntable_radius = 18  # inches (36" diameter)
+turntable_radius = 18
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
@@ -57,18 +56,19 @@ def simulate_coverage(turntable_rpm, nozzle_rpm, run_seconds, fps=30):
 left, right = st.columns(2)
 
 # ================================
-# 🔹 Left: Manual Single Simulation
+# 🔹 Left: Manual Simulation
 # ================================
 with left:
     st.subheader("🎛️ Manual Simulation")
 
-    t_rpm = st.slider("Turntable RPM", 5, 60, 30, step=1)
-    n_rpm = st.slider("Nozzle RPM", 5, 60, 30, step=1)
-    run_seconds = st.slider("Simulation Time (s)", 1, 20, 5)
-    run_manual = st.button("▶️ Run Manual Simulation")
+    t_rpm = st.slider("Turntable RPM", 5, 60, 30, key="manual_tt")
+    n_rpm = st.slider("Nozzle RPM", 5, 60, 30, key="manual_nz")
+    run_seconds = st.slider("Simulation Time (s)", 1, 20, 5, key="manual_time")
 
-    if run_manual:
-        st.write(f"Running simulation for {run_seconds} seconds...")
+    run_manual = st.button("▶️ Run Manual Simulation", key="manual_button")
+
+    if run_manual or "manual_ran" in st.session_state:
+        st.session_state["manual_ran"] = True
         coverage, heatmap = simulate_coverage(t_rpm, n_rpm, run_seconds)
 
         st.metric("Coverage %", f"{coverage:.1f}%")
@@ -84,24 +84,24 @@ with left:
         st.pyplot(fig)
 
 # ================================
-# 🔸 Right: Batch Optimizer
+# 🔸 Right: Batch Optimization
 # ================================
 with right:
     st.subheader("📊 Batch RPM Optimizer")
 
-    batch_duration = st.slider("Batch Time (s)", 5, 30, 10)
-    step = st.select_slider("RPM Step Size", options=[1, 5, 10], value=5)
-    run_batch = st.button("🚀 Run Batch Optimization")
+    batch_duration = st.slider("Batch Time (s)", 5, 30, 10, key="batch_time")
+    step = st.select_slider("RPM Step Size", options=[1, 5, 10], value=5, key="step")
+    run_batch = st.button("🚀 Run Batch Optimization", key="batch_button")
 
-    if run_batch:
+    if run_batch or "batch_ran" in st.session_state:
+        st.session_state["batch_ran"] = True
         rpm_range = list(range(5, 61, step))
         results = []
+        best_score = -1
+        best_combo = None
+        best_heatmap = None
 
         with st.spinner("Simulating..."):
-            best_score = -1
-            best_combo = None
-            best_heatmap = None
-
             for t_rpm in rpm_range:
                 for n_rpm in rpm_range:
                     score, heatmap = simulate_coverage(t_rpm, n_rpm, batch_duration)
