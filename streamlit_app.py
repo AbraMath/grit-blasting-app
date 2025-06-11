@@ -1,31 +1,47 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
-# --- App Setup ---
-st.set_page_config(page_title="Grit Blasting Simulator", layout="wide")
-st.title("🎯 Grit Blasting Coverage Simulator")
+st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
+st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
-# --- Constants ---
-turntable_radius = 18
+# --- Parameters ---
+turntable_radius = 18  # inches (36" diameter / 2)
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
-grid_size = 25
-x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
-y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
-xx, yy = np.meshgrid(
-    (x_edges[:-1] + x_edges[1:]) / 2,
-    (y_edges[:-1] + y_edges[1:]) / 2,
-    indexing='ij'
-)
-mask = xx**2 + yy**2 <= turntable_radius**2
-total_cells = np.sum(mask)
+turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
+nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
+trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
+run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
 
-def simulate_coverage(turntable_rpm, nozzle_rpm, run_seconds, fps=30):
-    heatmap_grid = np.zeros((grid_size, grid_size))
+st.markdown("Press ▶️ to run the animation and see coverage with a 25x25 grid limited to the turntable.")
+
+if st.button("▶️ Play Animation"):
+    frame_placeholder = st.empty()
+
     nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
+    trail_history = []
+
+    # --- Grid for heatmap (25x25) ---
+    grid_size = 25
+    heatmap_grid = np.zeros((grid_size, grid_size))
+    x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
+    y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
+
+    # Create mask for valid (circular) region
+    xx, yy = np.meshgrid(
+        (x_edges[:-1] + x_edges[1:]) / 2,
+        (y_edges[:-1] + y_edges[1:]) / 2,
+        indexing='ij'
+    )
+    mask = xx**2 + yy**2 <= turntable_radius**2
+
+    fig, ax = plt.subplots()
+
+    fps = 30
     total_frames = int(run_seconds * fps)
 
     for frame in range(total_frames):
@@ -45,85 +61,65 @@ def simulate_coverage(turntable_rpm, nozzle_rpm, run_seconds, fps=30):
         impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
         impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
 
+        trail_history.append((impact_x.copy(), impact_y.copy()))
+        if len(trail_history) > trail_length:
+            trail_history.pop(0)
+
+        # Update heatmap
         hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
         heatmap_grid += hist
 
+        # --- Plotting ---
+        ax.clear()
+        ax.set_xlim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_ylim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_aspect('equal')
+        ax.set_title(f"Frame {frame + 1}/{total_frames}")
+
+        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
+        ax.add_patch(turntable_circle)
+
+        ax.scatter(center_x, center_y, c='red', s=100, label="Nozzle Ring Center")
+
+        arrow_length = 4
+        arrow_dx = -arrow_length * np.sin(nozzle_angle)
+        arrow_dy = arrow_length * np.cos(nozzle_angle)
+        ax.arrow(center_x, center_y, arrow_dx, arrow_dy, color='red', width=0.3, head_width=1)
+
+        t_dx = -arrow_length * np.sin(turntable_angle)
+        t_dy = arrow_length * np.cos(turntable_angle)
+        ax.arrow(0, 0, t_dx, t_dy, color='gray', width=0.3, head_width=1)
+
+        for i, (tx, ty) in enumerate(trail_history):
+            alpha = (i + 1) / len(trail_history)
+            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)  # Mid-tone blue trail
+
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
+        ax.legend(loc='upper right')
+
+        frame_placeholder.pyplot(fig)
+        time.sleep(0.005)
+
+    # --- After animation: show heatmap ---
+    fig2, ax2 = plt.subplots()
+    ax2.set_title("🔆 Coverage Heatmap (25x25 Grid)")
+    extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+    cax = ax2.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
+    fig2.colorbar(cax, ax=ax2, label="Blast Intensity")
+    ax2.set_xlabel("X (inches)")
+    ax2.set_ylabel("Y (inches)")
+    ax2.set_aspect('equal')
+    st.pyplot(fig2)
+
+    # --- Coverage Score ---
+    total_cells = np.sum(mask)
     hit_count = np.count_nonzero(heatmap_grid[mask])
     coverage_score = (hit_count / total_cells) * 100
-    return coverage_score, heatmap_grid
+    st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
 
-# --- Layout ---
-left, right = st.columns(2)
-
-# ================================
-# 🔹 Left: Manual Simulation
-# ================================
-with left:
-    st.subheader("🎛️ Manual Simulation")
-
-    t_rpm = st.slider("Turntable RPM", 5, 60, 30, key="manual_tt")
-    n_rpm = st.slider("Nozzle RPM", 5, 60, 30, key="manual_nz")
-    run_seconds = st.slider("Simulation Time (s)", 1, 20, 5, key="manual_time")
-
-    run_manual = st.button("▶️ Run Manual Simulation", key="manual_button")
-
-    if run_manual or "manual_ran" in st.session_state:
-        st.session_state["manual_ran"] = True
-        coverage, heatmap = simulate_coverage(t_rpm, n_rpm, run_seconds)
-
-        st.metric("Coverage %", f"{coverage:.1f}%")
-
-        fig, ax = plt.subplots()
-        extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
-        im = ax.imshow(np.flipud(heatmap.T), extent=extent, cmap='hot', origin='lower')
-        fig.colorbar(im, ax=ax, label="Blast Intensity")
-        ax.set_title(f"Heatmap - TT: {t_rpm} RPM, Nozzle: {n_rpm} RPM")
-        ax.set_xlabel("X (in)")
-        ax.set_ylabel("Y (in)")
-        ax.set_aspect("equal")
-        st.pyplot(fig)
-
-# ================================
-# 🔸 Right: Batch Optimization
-# ================================
-with right:
-    st.subheader("📊 Batch RPM Optimizer")
-
-    batch_duration = st.slider("Batch Time (s)", 5, 30, 10, key="batch_time")
-    step = st.select_slider("RPM Step Size", options=[1, 5, 10], value=5, key="step")
-    run_batch = st.button("🚀 Run Batch Optimization", key="batch_button")
-
-    if run_batch or "batch_ran" in st.session_state:
-        st.session_state["batch_ran"] = True
-        rpm_range = list(range(5, 61, step))
-        results = []
-        best_score = -1
-        best_combo = None
-        best_heatmap = None
-
-        with st.spinner("Simulating..."):
-            for t_rpm in rpm_range:
-                for n_rpm in rpm_range:
-                    score, heatmap = simulate_coverage(t_rpm, n_rpm, batch_duration)
-                    results.append({"Turntable RPM": t_rpm, "Nozzle RPM": n_rpm, "Coverage %": score})
-                    if score > best_score:
-                        best_score = score
-                        best_combo = (t_rpm, n_rpm)
-                        best_heatmap = heatmap
-
-        st.metric("Best Coverage %", f"{best_score:.1f}%")
-        col1, col2 = st.columns(2)
-        col1.metric("Turntable RPM", best_combo[0])
-        col2.metric("Nozzle RPM", best_combo[1])
-
-        st.dataframe(results, use_container_width=True)
-
-        fig, ax = plt.subplots()
-        extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
-        im = ax.imshow(np.flipud(best_heatmap.T), extent=extent, cmap='hot', origin='lower')
-        fig.colorbar(im, ax=ax, label="Blast Intensity")
-        ax.set_title(f"Best Combo Heatmap - TT: {best_combo[0]}, Nozzle: {best_combo[1]}")
-        ax.set_xlabel("X (in)")
-        ax.set_ylabel("Y (in)")
-        ax.set_aspect("equal")
-        st.pyplot(fig)
+    # --- Extra Stats ---
+    turntable_revs = (turntable_rpm * run_seconds) / 60
+    nozzle_revs = (nozzle_rpm * run_seconds) / 60
+    col1, col2 = st.columns(2)
+    col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
+    col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
