@@ -4,8 +4,8 @@ import numpy as np
 import time
 
 # --- App Setup ---
-st.set_page_config(page_title="Batch Grit Blasting Optimizer", layout="wide")
-st.title("📊 Grit Blasting Batch Optimizer (25x25 Grid)")
+st.set_page_config(page_title="Grit Blasting Simulator", layout="wide")
+st.title("🎯 Grit Blasting Coverage Simulator")
 
 # --- Constants ---
 turntable_radius = 18  # inches (36" diameter)
@@ -53,47 +53,77 @@ def simulate_coverage(turntable_rpm, nozzle_rpm, run_seconds, fps=30):
     coverage_score = (hit_count / total_cells) * 100
     return coverage_score, heatmap_grid
 
-# --- Batch Run Controls ---
-run_seconds = st.slider("Run Time (seconds)", 5, 30, 10, step=1)
-step = st.select_slider("RPM Step Size", options=[1, 5, 10], value=5)
-run_button = st.button("🚀 Run Batch Simulation")
+# --- Layout ---
+left, right = st.columns(2)
 
-if run_button:
-    rpm_range = list(range(5, 61, step))
-    results = []
+# ================================
+# 🔹 Left: Manual Single Simulation
+# ================================
+with left:
+    st.subheader("🎛️ Manual Simulation")
 
-    with st.spinner("Running simulations..."):
-        best_score = -1
-        best_combo = None
-        best_heatmap = None
+    t_rpm = st.slider("Turntable RPM", 5, 60, 30, step=1)
+    n_rpm = st.slider("Nozzle RPM", 5, 60, 30, step=1)
+    run_seconds = st.slider("Simulation Time (s)", 1, 20, 5)
+    run_manual = st.button("▶️ Run Manual Simulation")
 
-        for t_rpm in rpm_range:
-            for n_rpm in rpm_range:
-                score, heatmap = simulate_coverage(t_rpm, n_rpm, run_seconds)
-                results.append({"Turntable RPM": t_rpm, "Nozzle RPM": n_rpm, "Coverage %": score})
-                if score > best_score:
-                    best_score = score
-                    best_combo = (t_rpm, n_rpm)
-                    best_heatmap = heatmap
+    if run_manual:
+        st.write(f"Running simulation for {run_seconds} seconds...")
+        coverage, heatmap = simulate_coverage(t_rpm, n_rpm, run_seconds)
 
-    # --- Show Table ---
-    st.subheader("🧾 Coverage Table")
-    st.dataframe(results, use_container_width=True)
+        st.metric("Coverage %", f"{coverage:.1f}%")
 
-    # --- Best Result Summary ---
-    st.subheader("🏆 Best RPM Combo")
-    col1, col2 = st.columns(2)
-    col1.metric("Turntable RPM", best_combo[0])
-    col2.metric("Nozzle RPM", best_combo[1])
-    st.metric("Max Coverage %", f"{best_score:.1f}%")
+        fig, ax = plt.subplots()
+        extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+        im = ax.imshow(np.flipud(heatmap.T), extent=extent, cmap='hot', origin='lower')
+        fig.colorbar(im, ax=ax, label="Blast Intensity")
+        ax.set_title(f"Heatmap - TT: {t_rpm} RPM, Nozzle: {n_rpm} RPM")
+        ax.set_xlabel("X (in)")
+        ax.set_ylabel("Y (in)")
+        ax.set_aspect("equal")
+        st.pyplot(fig)
 
-    # --- Plot Heatmap for Best Combo ---
-    fig, ax = plt.subplots()
-    extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
-    im = ax.imshow(np.flipud(best_heatmap.T), extent=extent, cmap='hot', origin='lower')
-    fig.colorbar(im, ax=ax, label="Blast Intensity")
-    ax.set_title(f"Heatmap: Turntable {best_combo[0]} RPM, Nozzle {best_combo[1]} RPM")
-    ax.set_xlabel("X (in)")
-    ax.set_ylabel("Y (in)")
-    ax.set_aspect("equal")
-    st.pyplot(fig)
+# ================================
+# 🔸 Right: Batch Optimizer
+# ================================
+with right:
+    st.subheader("📊 Batch RPM Optimizer")
+
+    batch_duration = st.slider("Batch Time (s)", 5, 30, 10)
+    step = st.select_slider("RPM Step Size", options=[1, 5, 10], value=5)
+    run_batch = st.button("🚀 Run Batch Optimization")
+
+    if run_batch:
+        rpm_range = list(range(5, 61, step))
+        results = []
+
+        with st.spinner("Simulating..."):
+            best_score = -1
+            best_combo = None
+            best_heatmap = None
+
+            for t_rpm in rpm_range:
+                for n_rpm in rpm_range:
+                    score, heatmap = simulate_coverage(t_rpm, n_rpm, batch_duration)
+                    results.append({"Turntable RPM": t_rpm, "Nozzle RPM": n_rpm, "Coverage %": score})
+                    if score > best_score:
+                        best_score = score
+                        best_combo = (t_rpm, n_rpm)
+                        best_heatmap = heatmap
+
+        st.metric("Best Coverage %", f"{best_score:.1f}%")
+        col1, col2 = st.columns(2)
+        col1.metric("Turntable RPM", best_combo[0])
+        col2.metric("Nozzle RPM", best_combo[1])
+
+        st.dataframe(results, use_container_width=True)
+
+        fig, ax = plt.subplots()
+        extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+        im = ax.imshow(np.flipud(best_heatmap.T), extent=extent, cmap='hot', origin='lower')
+        fig.colorbar(im, ax=ax, label="Blast Intensity")
+        ax.set_title(f"Best Combo Heatmap - TT: {best_combo[0]}, Nozzle: {best_combo[1]}")
+        ax.set_xlabel("X (in)")
+        ax.set_ylabel("Y (in)")
+        ax.set_aspect("equal")
+        st.pyplot(fig)
