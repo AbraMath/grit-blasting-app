@@ -1,13 +1,15 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import time
+from io import BytesIO
 
-st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
+st.set_page_config(page_title="Grit Blasting Visualizer", layout="wide")
 st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
 # --- Parameters ---
-turntable_radius = 18  # inches (36" diameter / 2)
+turntable_radius = 18  # inches
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
@@ -40,7 +42,6 @@ if st.button("▶️ Play Animation"):
     mask = xx**2 + yy**2 <= turntable_radius**2
 
     fig, ax = plt.subplots()
-
     fps = 30
     total_frames = int(run_seconds * fps)
 
@@ -92,11 +93,13 @@ if st.button("▶️ Play Animation"):
 
         for i, (tx, ty) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
-            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)  # Mid-tone blue trail
+            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)
 
-        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
+        for x, y in zip(impact_x, impact_y):
+            impact_circle = plt.Circle((x, y), 1, color='blue', alpha=0.6)  # 1 inch radius
+            ax.add_patch(impact_circle)
+
         ax.legend(loc='upper right')
-
         frame_placeholder.pyplot(fig)
         time.sleep(0.005)
 
@@ -123,3 +126,13 @@ if st.button("▶️ Play Animation"):
     col1, col2 = st.columns(2)
     col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
     col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
+
+    # --- Export Options ---
+    heatmap_df = pd.DataFrame(heatmap_grid)
+    csv = heatmap_df.to_csv(index=False)
+    st.download_button("📥 Download Heatmap CSV", csv, file_name="heatmap.csv")
+
+    buf = BytesIO()
+    fig2.savefig(buf, format="png")
+    st.download_button("📷 Download Heatmap Image", buf.getvalue(), file_name="heatmap.png")
+
