@@ -1,10 +1,9 @@
 import streamlit as st
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import numpy as np
 import time
 
-st.set_page_config(page_title="Grit Blasting Visualizer with Offset Nozzles", layout="centered")
+st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
 st.title("🌀 Grit Blasting Nozzle Path Visualization (with Fixed Nozzle Ring Center)")
 
 # --- Parameters ---
@@ -31,6 +30,14 @@ if st.button("▶️ Play Animation"):
     heatmap_grid = np.zeros((grid_size, grid_size))
     x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
     y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
+
+    # Create mask for cells inside the turntable
+    xx, yy = np.meshgrid(
+        (x_edges[:-1] + x_edges[1:]) / 2,
+        (y_edges[:-1] + y_edges[1:]) / 2,
+        indexing='ij'
+    )
+    mask = xx**2 + yy**2 <= turntable_radius**2
 
     fig, ax = plt.subplots()
 
@@ -59,7 +66,7 @@ if st.button("▶️ Play Animation"):
             trail_history.pop(0)
 
         # Update heatmap
-        hist, x_idx, y_idx = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
+        hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
         heatmap_grid += hist
 
         # --- Plotting ---
@@ -85,13 +92,13 @@ if st.button("▶️ Play Animation"):
 
         for i, (tx, ty) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
-            ax.scatter(tx, ty, color=cm.Blues(alpha), s=200, alpha=alpha)
+            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)  # Mid-tone blue trail
 
         ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
-        time.sleep(0.01)
+        time.sleep(0.005)  # Faster animation
 
     # --- After animation: show heatmap ---
     fig2, ax2 = plt.subplots()
@@ -105,12 +112,6 @@ if st.button("▶️ Play Animation"):
     st.pyplot(fig2)
 
     # --- Coverage Score ---
-    xx, yy = np.meshgrid(
-        (x_edges[:-1] + x_edges[1:]) / 2,
-        (y_edges[:-1] + y_edges[1:]) / 2,
-        indexing='ij'
-    )
-    mask = xx**2 + yy**2 <= turntable_radius**2
     total_cells = np.sum(mask)
     hit_count = np.count_nonzero(heatmap_grid[mask])
     coverage_score = (hit_count / total_cells) * 100
