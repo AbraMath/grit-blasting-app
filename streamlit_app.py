@@ -123,3 +123,5 @@ if st.button("▶️ Play Animation"):
     col1, col2 = st.columns(2)
     col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
     col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
+
+only_show_heatmap = st.checkbox("🔥 Skip animation, only compute heatmap", value=False)
