@@ -14,12 +14,13 @@ nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 grid_size = 25
+nozzle_diameter = 2  # inches
+nozzle_radius = nozzle_diameter / 2
 
 # RPM combo settings
 st.sidebar.header("Simulation Settings")
 rpm_step = st.sidebar.slider("RPM Step Size", 5, 20, 10)
 run_seconds = st.sidebar.slider("Run Duration (seconds)", 1, 30, 5)
-trail_length = st.sidebar.slider("Trail Length (frames)", 1, 150, 20)
 
 turntable_rpms = list(range(5, 65, rpm_step))
 nozzle_rpms = list(range(5, 65, rpm_step))
@@ -35,32 +36,35 @@ def simulate_rpm_pair(turntable_rpm, nozzle_rpm, run_seconds, grid_size=25):
     y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
     heatmap_grid = np.zeros((grid_size, grid_size))
 
-    # Mask for valid area
+    # Grid cell centers
     xx, yy = np.meshgrid(
         (x_edges[:-1] + x_edges[1:]) / 2,
         (y_edges[:-1] + y_edges[1:]) / 2,
         indexing='ij'
     )
-    mask = xx**2 + yy**2 <= turntable_radius**2
+    mask = xx**2 + yy**2 <= turntable_radius**2  # Mask for valid cells
 
     for frame in range(total_frames):
         t = frame / fps
         turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
         nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
 
+        # Nozzle tips (before rotation)
         local_x = nozzle_ring_radius * np.cos(nozzle_angles + nozzle_angle)
         local_y = nozzle_ring_radius * np.sin(nozzle_angles + nozzle_angle)
-        center_x = nozzle_ring_offset
-        center_y = 0
 
-        nozzle_x = local_x + center_x
-        nozzle_y = local_y + center_y
+        # Offset center
+        nozzle_x = local_x + nozzle_ring_offset
+        nozzle_y = local_y
 
+        # Rotate with turntable
         impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
         impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
 
-        hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
-        heatmap_grid += hist
+        for x, y in zip(impact_x, impact_y):
+            dist = np.sqrt((xx - x)**2 + (yy - y)**2)
+            coverage_mask = dist <= nozzle_radius
+            heatmap_grid[coverage_mask] += 1
 
     total_cells = np.sum(mask)
     hit_cells = np.count_nonzero(heatmap_grid[mask])
