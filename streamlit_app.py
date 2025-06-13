@@ -9,7 +9,7 @@ st.set_page_config(page_title="Grit Blasting Visualizer", layout="wide")
 st.title("🌀 Grit Blasting Coverage Comparison Tool (25x25 Grid)")
 
 # --- Parameters ---
-turntable_radius = 18  # inches
+turntable_radius = 30  # inches
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
