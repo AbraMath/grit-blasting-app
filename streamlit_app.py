@@ -2,144 +2,86 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import time
 
-# --- Page Setup ---
-st.set_page_config(page_title="Grit Blasting Visualizer", layout="wide")
-st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
+st.set_page_config(page_title="Optimized Grit Blasting RPMs", layout="wide")
+st.title("🧠 Optimizing RPM Combinations for Blast Coverage")
 
 # --- Parameters ---
-turntable_radius = 18  # inches (36" diameter / 2)
+turntable_radius = 30  # inches (36" diameter / 2)
 nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
-nozzle_diameter = 2  # 2-inch diameter impact
-
-# --- User Controls ---
-st.sidebar.header("Simulation Settings")
-turntable_rpm = st.sidebar.slider("Turntable RPM", 0, 60, 2, 1)
-nozzle_rpm = st.sidebar.slider("Nozzle Assembly RPM", 0, 60, 22, 1)
-run_seconds = st.sidebar.slider("Blast Duration (s)", 1, 30, 10)
+impact_radius = 1  # 2 inch diameter (1 inch radius)
 fps = 30
-run_batch = st.sidebar.checkbox("Run batch simulation (auto-sweep RPMs)")
+run_seconds = 10
+total_frames = fps * run_seconds
 
-# --- Common Setup ---
-total_frames = int(run_seconds * fps)
+# RPM ranges to evaluate
+tt_rpm_range = range(0, 9)  # 0–8
+nz_rpm_range = range(0, 45)  # 0–44
+
+# Create grid
 grid_size = 25
 x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
-xx, yy = np.meshgrid(
-    (x_edges[:-1] + x_edges[1:]) / 2,
-    (y_edges[:-1] + y_edges[1:]) / 2,
-    indexing='ij'
-)
+xx, yy = np.meshgrid((x_edges[:-1] + x_edges[1:]) / 2,
+                     (y_edges[:-1] + y_edges[1:]) / 2, indexing='ij')
 mask = xx**2 + yy**2 <= turntable_radius**2
+cell_centers = np.stack([xx, yy], axis=-1)
 
-# --- Batch Mode ---
-if run_batch:
-    st.markdown("### 🔄 Running batch simulation...")
-    rpm_steps = [0, 2, 4, 6, 8]
-    nozzle_steps = [0, 11, 22, 33, 44]
-    results = []
-    progress = st.progress(0.0)
-    total_tests = len(rpm_steps) * len(nozzle_steps)
+best_score = -1
+best_combo = (0, 0)
+coverage_scores = []
 
-    for i, turn_rpm in enumerate(rpm_steps):
-        for j, noz_rpm in enumerate(nozzle_steps):
-            heatmap = np.zeros((grid_size, grid_size))
-            nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
+progress = st.progress(0, text="Evaluating combinations...")
 
-            for frame in range(total_frames):
-                t = frame / fps
-                turntable_angle = 2 * np.pi * (turn_rpm / 60) * t
-                nozzle_angle = -2 * np.pi * (noz_rpm / 60) * t
-
-                local_x = nozzle_ring_radius * np.cos(nozzle_angles + nozzle_angle)
-                local_y = nozzle_ring_radius * np.sin(nozzle_angles + nozzle_angle)
-                center_x = nozzle_ring_offset
-                center_y = 0
-
-                nozzle_x = local_x + center_x
-                nozzle_y = local_y + center_y
-
-                impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
-                impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
-
-                hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
-                heatmap += hist
-
-            hit_count = np.count_nonzero(heatmap[mask])
-            total_cells = np.sum(mask)
-            coverage_score = (hit_count / total_cells) * 100
-            results.append((turn_rpm, noz_rpm, coverage_score))
-
-            progress.progress((i * len(nozzle_steps) + j + 1) / total_tests)
-
-    # --- Show Results ---
-    st.subheader("📊 RPM Coverage Matrix")
-    df = pd.DataFrame(
-        np.zeros((len(rpm_steps), len(nozzle_steps))),
-        index=[f"T:{r}" for r in rpm_steps],
-        columns=[f"N:{n}" for n in nozzle_steps],
-    )
-
-    for turn_rpm, noz_rpm, score in results:
-        df.loc[f"T:{turn_rpm}", f"N:{noz_rpm}"] = score
-
-    best_idx = np.unravel_index(np.argmax(df.values), df.shape)
-    best_turn = rpm_steps[best_idx[0]]
-    best_noz = nozzle_steps[best_idx[1]]
-    best_score = df.values[best_idx]
-
-    st.dataframe(df.style.background_gradient(cmap='YlGnBu').format("{:.1f}%"))
-    st.success(f"✅ Best Coverage: {best_score:.1f}% at Turntable {best_turn} RPM, Nozzle {best_noz} RPM")
-
-    # Optional CSV export
-    csv = df.to_csv().encode("utf-8")
-    st.download_button("📥 Download Coverage Matrix (CSV)", data=csv, file_name="blast_coverage_matrix.csv", mime="text/csv")
-
-# --- Single Animation Mode ---
-else:
-    if st.button("▶️ Play Animation"):
-        st.subheader("🎬 Nozzle Path Simulation")
+for i, tt_rpm in enumerate(tt_rpm_range):
+    for j, nz_rpm in enumerate(nz_rpm_range):
         heatmap = np.zeros((grid_size, grid_size))
         nozzle_angles = np.linspace(0, 2 * np.pi, num_nozzles, endpoint=False)
 
-        fig, ax = plt.subplots()
-        ax.set_xlim(-turntable_radius, turntable_radius)
-        ax.set_ylim(-turntable_radius, turntable_radius)
-        ax.set_aspect("equal")
-        ax.set_title("Nozzle Impact Path")
-
         for frame in range(total_frames):
             t = frame / fps
-            turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
-            nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
+            turntable_angle = 2 * np.pi * (tt_rpm / 60) * t
+            nozzle_angle = -2 * np.pi * (nz_rpm / 60) * t
 
             local_x = nozzle_ring_radius * np.cos(nozzle_angles + nozzle_angle)
             local_y = nozzle_ring_radius * np.sin(nozzle_angles + nozzle_angle)
-            center_x = nozzle_ring_offset
-            center_y = 0
+            nozzle_x = local_x + nozzle_ring_offset
+            nozzle_y = local_y
 
-            nozzle_x = local_x + center_x
-            nozzle_y = local_y + center_y
-
+            # Apply turntable rotation
             impact_x = nozzle_x * np.cos(turntable_angle) - nozzle_y * np.sin(turntable_angle)
             impact_y = nozzle_x * np.sin(turntable_angle) + nozzle_y * np.cos(turntable_angle)
 
-            hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
-            heatmap += hist
-
             for x, y in zip(impact_x, impact_y):
-                circ = plt.Circle((x, y), radius=nozzle_diameter / 2, color='blue', alpha=0.1)
-                ax.add_patch(circ)
+                distances = np.sqrt((xx - x)**2 + (yy - y)**2)
+                heatmap += (distances <= impact_radius).astype(int)
 
-            if frame % 10 == 0:
-                ax.plot()  # optional: refresh every 10 frames
+        score = np.count_nonzero(heatmap[mask]) / np.sum(mask) * 100
+        coverage_scores.append((tt_rpm, nz_rpm, score))
+        if score > best_score:
+            best_score = score
+            best_combo = (tt_rpm, nz_rpm)
+            best_heatmap = heatmap.copy()
 
-        st.pyplot(fig)
+        progress.progress(((i * len(nz_rpm_range) + j + 1) / (len(tt_rpm_range) * len(nz_rpm_range))),
+                          text=f"Checking TT: {tt_rpm} RPM, NZ: {nz_rpm} RPM")
 
-        hit_count = np.count_nonzero(heatmap[mask])
-        total_cells = np.sum(mask)
-        coverage_score = (hit_count / total_cells) * 100
-        st.success(f"🧮 Coverage Score: {coverage_score:.1f}%")
+# --- Show Results ---
+st.success(f"✅ Best Coverage: {best_score:.1f}% with Turntable {best_combo[0]} RPM and Nozzle {best_combo[1]} RPM")
+
+fig, ax = plt.subplots()
+ax.set_title("Best Coverage Heatmap (25x25 Grid)")
+extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+cax = ax.imshow(np.flipud(best_heatmap.T), extent=extent, cmap='hot', origin='lower')
+fig.colorbar(cax, ax=ax, label="Blast Intensity")
+ax.set_xlabel("X (inches)")
+ax.set_ylabel("Y (inches)")
+ax.set_aspect('equal')
+st.pyplot(fig)
+
+# Show full table of RPM combos
+if st.checkbox("Show all RPM coverage scores"):
+    df = pd.DataFrame(coverage_scores, columns=["Turntable RPM", "Nozzle RPM", "Coverage %"])
+    st.dataframe(df.sort_values("Coverage %", ascending=False).reset_index(drop=True))
