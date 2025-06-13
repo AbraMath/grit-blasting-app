@@ -8,13 +8,13 @@ st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
 st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
 # --- Parameters ---
-turntable_radius = 30  # inches (36" diameter / 2)
+turntable_radius = 30  # inches
 nozzle_ring_radius = 15
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 
 fps = 30
-grid_size = 25
+grid_size = 50
 x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
