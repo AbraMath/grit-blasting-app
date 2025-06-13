@@ -14,11 +14,8 @@ num_nozzles = 6
 
 turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
 nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
-nozzle_diameter = st.slider("Nozzle Blast Diameter (inches)", 0.5, 5.0, 2.0, step=0.1)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
-
-nozzle_radius = nozzle_diameter / 2
 
 st.markdown("Press ▶️ to run the animation and see coverage with a 25x25 grid limited to the turntable.")
 
@@ -34,6 +31,7 @@ if st.button("▶️ Play Animation"):
     x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
     y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
+    # Create mask for valid (circular) region
     xx, yy = np.meshgrid(
         (x_edges[:-1] + x_edges[1:]) / 2,
         (y_edges[:-1] + y_edges[1:]) / 2,
@@ -42,13 +40,14 @@ if st.button("▶️ Play Animation"):
     mask = xx**2 + yy**2 <= turntable_radius**2
 
     fig, ax = plt.subplots()
+
     fps = 30
     total_frames = int(run_seconds * fps)
 
     for frame in range(total_frames):
         t = frame / fps
-        turntable_angle = -2 * np.pi * (turntable_rpm / 60) * t  # Clockwise
-        nozzle_angle = 2 * np.pi * (nozzle_rpm / 60) * t         # Counter-clockwise
+        turntable_angle = 2 * np.pi * (turntable_rpm / 60) * t
+        nozzle_angle = -2 * np.pi * (nozzle_rpm / 60) * t
 
         local_x = nozzle_ring_radius * np.cos(nozzle_angles + nozzle_angle)
         local_y = nozzle_ring_radius * np.sin(nozzle_angles + nozzle_angle)
@@ -66,10 +65,9 @@ if st.button("▶️ Play Animation"):
         if len(trail_history) > trail_length:
             trail_history.pop(0)
 
-        # Update heatmap using circular impact zones
-        for x_i, y_i in zip(impact_x, impact_y):
-            dist_sq = (xx - x_i)**2 + (yy - y_i)**2
-            heatmap_grid[dist_sq <= nozzle_radius**2] += 1
+        # Update heatmap
+        hist, _, _ = np.histogram2d(impact_x, impact_y, bins=[x_edges, y_edges])
+        heatmap_grid += hist
 
         # --- Plotting ---
         ax.clear()
@@ -84,21 +82,19 @@ if st.button("▶️ Play Animation"):
         ax.scatter(center_x, center_y, c='red', s=100, label="Nozzle Ring Center")
 
         arrow_length = 4
-        ax.arrow(center_x, center_y,
-                 -arrow_length * np.sin(nozzle_angle),
-                  arrow_length * np.cos(nozzle_angle),
-                 color='red', width=0.3, head_width=1)
+        arrow_dx = -arrow_length * np.sin(nozzle_angle)
+        arrow_dy = arrow_length * np.cos(nozzle_angle)
+        ax.arrow(center_x, center_y, arrow_dx, arrow_dy, color='red', width=0.3, head_width=1)
 
-        ax.arrow(0, 0,
-                 arrow_length * np.sin(turntable_angle),
-                -arrow_length * np.cos(turntable_angle),
-                 color='gray', width=0.3, head_width=1)
+        t_dx = -arrow_length * np.sin(turntable_angle)
+        t_dy = arrow_length * np.cos(turntable_angle)
+        ax.arrow(0, 0, t_dx, t_dy, color='gray', width=0.3, head_width=1)
 
         for i, (tx, ty) in enumerate(trail_history):
             alpha = (i + 1) / len(trail_history)
-            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)
+            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)  # Mid-tone blue trail
 
-        ax.scatter(impact_x, impact_y, c='blue', s=200, label='Nozzle Tips')
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
         ax.legend(loc='upper right')
 
         frame_placeholder.pyplot(fig)
