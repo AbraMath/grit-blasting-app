@@ -9,7 +9,7 @@ st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
 # --- Parameters ---
 turntable_radius = 30  # inches
-nozzle_ring_radius = 12
+nozzle_ring_radius = 15
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 
