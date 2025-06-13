@@ -8,13 +8,13 @@ st.set_page_config(page_title="Grit Blasting Visualizer", layout="centered")
 st.title("🌀 Grit Blasting Nozzle Path Visualization (25x25 Grid)")
 
 # --- Parameters ---
-turntable_radius = 30  # inches (36" diameter / 2) 
+turntable_radius = 30  # inches (36" diameter / 2)
 nozzle_ring_radius = 15
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 
 fps = 30
-grid_size = 50
+grid_size = 25
 x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
@@ -51,7 +51,7 @@ def simulate_coverage(turn_rpm, noz_rpm, run_seconds=10):
 
     hit_count = np.count_nonzero(heatmap[mask])
     coverage_score = (hit_count / total_cells) * 100
-    return coverage_score
+    return coverage_score, heatmap
 
 # --- Sliders ---
 st.subheader("🎛 Manual Settings")
@@ -149,10 +149,12 @@ if st.button("▶️ Play Animation"):
 st.subheader("📊 Batch Mode: Auto-Compare RPM Combos")
 if st.button("🚀 Run Batch Evaluation"):
     results = []
+    heatmaps = {}
     for t_rpm in range(0, 9):
         for n_rpm in range(0, 45, 5):
-            score = simulate_coverage(t_rpm, n_rpm, run_seconds=10)
+            score, heatmap = simulate_coverage(t_rpm, n_rpm, run_seconds=10)
             results.append((t_rpm, n_rpm, score))
+            heatmaps[(t_rpm, n_rpm)] = heatmap
 
     df = pd.DataFrame(results, columns=["Turntable RPM", "Nozzle RPM", "Coverage %"])
     df_sorted = df.sort_values("Coverage %", ascending=False).reset_index(drop=True)
@@ -160,3 +162,19 @@ if st.button("🚀 Run Batch Evaluation"):
     best = df_sorted.iloc[0]
     st.success(f"🏆 Best Coverage: {best['Coverage %']:.1f}% at Turntable {best['Turntable RPM']} RPM & Nozzle {best['Nozzle RPM']} RPM")
     st.dataframe(df_sorted)
+
+    st.subheader("🔝 Top 5 Coverage Heatmaps")
+    for i in range(5):
+        row = df_sorted.iloc[i]
+        t_rpm, n_rpm = row["Turntable RPM"], row["Nozzle RPM"]
+        heatmap = heatmaps[(t_rpm, n_rpm)]
+
+        fig, ax = plt.subplots()
+        ax.set_title(f"#{i+1}: {row['Coverage %']:.1f}% @ Turntable {t_rpm} RPM, Nozzle {n_rpm} RPM")
+        extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+        cax = ax.imshow(np.flipud(heatmap.T), extent=extent, cmap='hot', origin='lower')
+        fig.colorbar(cax, ax=ax, label="Blast Intensity")
+        ax.set_xlabel("X (inches)")
+        ax.set_ylabel("Y (inches)")
+        ax.set_aspect('equal')
+        st.pyplot(fig)
