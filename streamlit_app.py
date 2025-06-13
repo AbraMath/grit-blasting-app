@@ -12,8 +12,8 @@ nozzle_ring_radius = turntable_radius / 4
 nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 
-turntable_rpm = st.slider("Turntable RPM", 1, 60, 20)
-nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 60, 20)
+turntable_rpm = st.slider("Turntable RPM", 1, 8, 20)
+nozzle_rpm = st.slider("Nozzle Ring RPM", 1, 44, 20)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
 
