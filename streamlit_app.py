@@ -77,4 +77,69 @@ if st.button("▶️ Play Animation"):
             idx_y = np.where(mask_y)[0]
             if idx_x.size > 0 and idx_y.size > 0:
                 # Increase coverage area based on nozzle diameter
-                radius_cells = int(np.ceil((nozzle_diameter / 2) / ((2
+                radius_cells = int(np.ceil((nozzle_diameter / 2) / ((2 * turntable_radius) / grid_size)))
+                for dx in range(-radius_cells, radius_cells + 1):
+                    for dy in range(-radius_cells, radius_cells + 1):
+                        xi = idx_x[0] + dx
+                        yi = idx_y[0] + dy
+                        if 0 <= xi < grid_size and 0 <= yi < grid_size:
+                            dist = np.sqrt(dx**2 + dy**2)
+                            if dist <= radius_cells:
+                                heatmap_grid[xi, yi] += 1
+
+        # --- Plotting ---
+        ax.clear()
+        ax.set_xlim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_ylim(-turntable_radius - 5, turntable_radius + 5)
+        ax.set_aspect('equal')
+        ax.set_title(f"Frame {frame + 1}/{total_frames}")
+
+        turntable_circle = plt.Circle((0, 0), turntable_radius, fill=False, linestyle='--', linewidth=1)
+        ax.add_patch(turntable_circle)
+
+        ax.scatter(center_x, center_y, c='red', s=100, label="Nozzle Ring Center")
+
+        arrow_length = 4
+        ax.arrow(center_x, center_y,
+                 -arrow_length * np.sin(nozzle_angle),
+                  arrow_length * np.cos(nozzle_angle),
+                 color='red', width=0.3, head_width=1)
+
+        ax.arrow(0, 0,
+                 -arrow_length * np.sin(turntable_angle),
+                  arrow_length * np.cos(turntable_angle),
+                 color='gray', width=0.3, head_width=1)
+
+        for i, (tx, ty) in enumerate(trail_history):
+            alpha = (i + 1) / len(trail_history)
+            ax.scatter(tx, ty, color=(0.3, 0.5, 0.9, alpha), s=200)
+
+        ax.scatter(nozzle_x, nozzle_y, c='blue', s=200, label='Nozzle Tips')
+        ax.legend(loc='upper right')
+
+        frame_placeholder.pyplot(fig)
+        time.sleep(0.005)
+
+    # --- Heatmap ---
+    fig2, ax2 = plt.subplots()
+    ax2.set_title("🔆 Coverage Heatmap (25x25 Grid)")
+    extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+    cax = ax2.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
+    fig2.colorbar(cax, ax=ax2, label="Blast Intensity")
+    ax2.set_xlabel("X (inches)")
+    ax2.set_ylabel("Y (inches)")
+    ax2.set_aspect('equal')
+    st.pyplot(fig2)
+
+    # --- Coverage Score ---
+    total_cells = np.sum(mask)
+    hit_count = np.count_nonzero(heatmap_grid[mask])
+    coverage_score = (hit_count / total_cells) * 100
+    st.metric("📈 Estimated Coverage %", f"{coverage_score:.1f}%")
+
+    # --- Extra Stats ---
+    turntable_revs = (turntable_rpm * run_seconds) / 60
+    nozzle_revs = (nozzle_rpm * run_seconds) / 60
+    col1, col2 = st.columns(2)
+    col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
+    col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
