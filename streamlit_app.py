@@ -14,7 +14,7 @@ nozzle_ring_offset = turntable_radius / 2
 num_nozzles = 6
 
 fps = 30
-grid_size = 25
+grid_size = 50
 x_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 y_edges = np.linspace(-turntable_radius, turntable_radius, grid_size + 1)
 
