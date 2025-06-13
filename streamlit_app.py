@@ -55,7 +55,7 @@ def simulate_coverage(turn_rpm, noz_rpm, run_seconds=10):
 
 # --- Sliders ---
 st.subheader("🎛 Manual Settings")
-turntable_rpm = st.slider("Turntable RPM", 0, 8, 1)
+turntable_rpm = st.slider("Turntable RPM", 0, 8, 0.4)
 nozzle_rpm = st.slider("Nozzle Ring RPM", 0, 44, 1)
 trail_length = st.slider("Trail Length (frames)", 1, 150, 20)
 run_seconds = st.slider("Run Duration (seconds)", 1, 60, 10)
