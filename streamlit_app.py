@@ -178,3 +178,26 @@ if st.button("🚀 Run Batch Evaluation"):
         ax.set_ylabel("Y (inches)")
         ax.set_aspect('equal')
         st.pyplot(fig)
+
+
+if st.button("📸 Generate Heatmap Now (No Animation)"):
+    score, heatmap_grid = simulate_coverage(turntable_rpm, nozzle_rpm, run_seconds=run_seconds)
+
+    fig, ax = plt.subplots()
+    ax.set_title("🔆 Coverage Heatmap (25x25 Grid)")
+    extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
+    cax = ax.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
+    fig.colorbar(cax, ax=ax, label="Blast Intensity")
+    ax.set_xlabel("X (inches)")
+    ax.set_ylabel("Y (inches)")
+    ax.set_aspect('equal')
+    st.pyplot(fig)
+
+    st.metric("📈 Estimated Coverage %", f"{score:.1f}%")
+
+    turntable_revs = (turntable_rpm * run_seconds) / 60
+    nozzle_revs = (nozzle_rpm * run_seconds) / 60
+    col1, col2 = st.columns(2)
+    col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
+    col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
+
