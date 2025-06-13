@@ -186,7 +186,10 @@ if st.button("📸 Generate Heatmap Now (No Animation)"):
     fig, ax = plt.subplots()
     ax.set_title("🔆 Coverage Heatmap (25x25 Grid)")
     extent = [-turntable_radius, turntable_radius, -turntable_radius, turntable_radius]
-    cax = ax.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower')
+    
+    # 🔧 Fixed color scale from 0 to 50
+    cax = ax.imshow(np.flipud(heatmap_grid.T), extent=extent, cmap='hot', origin='lower', vmin=0, vmax=50)
+
     fig.colorbar(cax, ax=ax, label="Blast Intensity")
     ax.set_xlabel("X (inches)")
     ax.set_ylabel("Y (inches)")
@@ -200,4 +203,5 @@ if st.button("📸 Generate Heatmap Now (No Animation)"):
     col1, col2 = st.columns(2)
     col1.metric("🔄 Turntable Revolutions", f"{turntable_revs:.2f}")
     col2.metric("🔁 Nozzle Ring Revolutions", f"{nozzle_revs:.2f}")
+
 
